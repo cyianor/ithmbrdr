@@ -23,27 +23,32 @@ that Keith wrote for a lot of information on the format. It seems that he figure
 most/all(?) of this out on his own, which is a great achievement.
 
 For the iPod nano 3rd generation, that I had available here, it turns out that
-the highest resolution images (720 x 480 pixels) were in files called
+the highest resolution images (`720 x 480 pixels`) were in files called
 `F1067_x.ithmb` where `x` indicates the chunk, since these files are broken
 apart if there are too many images in one.
 
 The images are stored consecutively in the `ithmb` files, without any header.
 Not that each image uses `720 * 480 * 2 bytes`. The colors were encoded in 
-YCbCr or YUV (not sure) with a 4:2:0 chroma sampling scheme.
+YCbCr or YUV (not sure) with a 4:2:0 chroma sampling scheme. Not that the
+data is saved in the order below.
 
 The first `720 * 480 bytes` encode the luminance for each pixel. The next
-`360 * 240 bytes` encode the Cb or U chrominance and the following 
-`360 * 240 bytes` encode the Cr or V chrominance.
+`360 * 240 bytes` encode the Cb or U chrominance (essentially as a
+`360 x 240 pixel` grayscale) and the following `360 * 240 bytes` encode
+the Cr or V chrominance.
 
-It is unclear what the last `720 * 120 bytes` contain. When extracted as pure
-gray channel information it looks like a horizontally stretched version of
-the lower half of the original image. It is unclear if there is any new
-information in that section that is not encoded in the upper sections.
+After some more exploration, it seems like the last `720 * 120 bytes`
+contain a version of the lower half of the picture encoded in the first
+3/4-th of the file. It is encoded in YCbCr or YUV in blocks of four bytes
+as `Cb Y Cr Y`. This is similar to a 4:2:2 chroma sampling scheme. However,
+the weird thing is that the luminance channel seems to miss half the rows,
+while the chroma information is fully available and is the same as the
+lower half of the respective chroma channels encoded above. It is possible
+that this chunk is just meant for padding, but it is unclear why half the
+image would be saved here, especially in this vertically squished fashion.
 
 ## TODOs
 
-- Is the last third of image data just padding? It looks like half the image
-  in some interlaced way
 - Figure out how the `Photo Database` file can be read. This might give reveal
   extra information about the images
 - See if I can find more test data to try other iPod/iPhone models

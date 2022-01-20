@@ -181,6 +181,60 @@ func main() {
 		// err = saveImageToPng("thumb_chroma_red.png", outImageChromaRed)
 		// check(err)
 
+		// // Extract luminance of rest and produce grayscale bitmap
+		// outImageRestLuminance := image.NewGray(image.Rect(0, 0, thumbWidth, thumbHeight/4))
+		// for y := 360; y < thumbHeight; y = y + 1 {
+		// 	for x := 0; x < thumbWidth; x = x + 1 {
+		// 		luminance := thumbReadBuf[y*thumbWidth*2+2*x+1]
+		// 		outImageRestLuminance.Set(x, y-360, color.Gray{luminance})
+		// 	}
+		// }
+
+		// err = saveImageToPng("thumb_rest_luminance.png", outImageRestLuminance)
+		// check(err)
+
+		// // Extract only the last fourth of image data and produce grayscale bitmap
+		// outImageRestChromaBlue := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/4))
+		// outImageRestChromaRed := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/4))
+		// for y := 360; y < thumbHeight; y = y + 1 {
+		// 	for x := 0; x < thumbWidth/2; x = x + 1 {
+		// 		chromaBlue := thumbReadBuf[y*thumbWidth*2+4*x]
+		// 		chromaRed := thumbReadBuf[y*thumbWidth*2+4*x+2]
+		// 		outImageRestChromaBlue.Set(x, y-360, color.Gray{chromaBlue})
+		// 		outImageRestChromaRed.Set(x, y-360, color.Gray{chromaRed})
+		// 	}
+		// }
+
+		// err = saveImageToPng("thumb_rest_chroma_blue.png", outImageRestChromaBlue)
+		// check(err)
+		// err = saveImageToPng("thumb_rest_chroma_red.png", outImageRestChromaRed)
+		// check(err)
+
+		// // Re-create image from rest
+		// outImageRest := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight/4))
+		// for y := 360; y < thumbHeight; y = y + 1 {
+		// 	for x := 0; x < thumbWidth; x = x + 1 {
+		// 		luminance, chromaBlue, chromaRed := uint8(0), uint8(0), uint8(0)
+		// 		if x%2 == 0 {
+		// 			xhalf := x / 2
+		// 			luminance = thumbReadBuf[y*thumbWidth*2+4*xhalf+1]
+		// 			chromaBlue = thumbReadBuf[y*thumbWidth*2+4*xhalf]
+		// 			chromaRed = thumbReadBuf[y*thumbWidth*2+4*xhalf+2]
+		// 		} else {
+		// 			xm1half := (x - 1) / 2
+		// 			luminance = thumbReadBuf[y*thumbWidth*2+4*xm1half+3]
+		// 			chromaBlue = thumbReadBuf[y*thumbWidth*2+4*xm1half]
+		// 			chromaRed = thumbReadBuf[y*thumbWidth*2+4*xm1half+2]
+		// 		}
+
+		// 		r, g, b := ycbcr2rgb(ycbcr{luminance, chromaBlue, chromaRed})
+		// 		outImageRest.Set(x, y-360, color.RGBA{r, g, b, 255})
+		// 	}
+		// }
+
+		// err = saveImageToPng("thumb_rest.png", outImageRest)
+		// check(err)
+
 		// Create array of y, cb, cr components
 		outImage := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight))
 		for y := 0; y < thumbHeight; y = y + 1 {
