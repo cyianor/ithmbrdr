@@ -49,13 +49,14 @@ func check(e error) {
 	}
 }
 
-func saveImageToPng(path string, img image.Image) {
+func saveImageToPng(path string, img image.Image) error {
 	outFile, err := os.Create(path)
-	check(err)
+	if err != nil {
+		return err
+	}
 	defer outFile.Close()
 
-	err = png.Encode(outFile, img)
-	check(err)
+	return png.Encode(outFile, img)
 }
 
 func main() {
@@ -67,13 +68,14 @@ func main() {
 	thumbsPath, err := filepath.Abs(os.Args[2])
 	check(err)
 	fmt.Printf("Reading from %s\n", thumbsPath)
-	thumbsName := strings.Split(filepath.Base(thumbsPath), ".")[0]
-	fmt.Printf("File is %s\n", thumbsName)
+	thumbName := strings.Split(filepath.Base(thumbsPath), ".")[0]
+	fmt.Printf("File is %s\n", thumbName)
 
 	// Create a directory of this name if it does not exist
-	if _, err = os.Stat(thumbsName); errors.Is(err, os.ErrNotExist) {
-		err = os.Mkdir(thumbsName, os.ModePerm)
-		check(err)
+	if _, err = os.Stat(thumbName); errors.Is(err, os.ErrNotExist) {
+		if err = os.Mkdir(thumbName, os.ModePerm); err != nil {
+			panic(err)
+		}
 	}
 
 	f, err := os.Open(thumbsPath)
@@ -115,7 +117,7 @@ func main() {
 
 	for i := thumbIdMin; i < thumbIdMax; i += 1 {
 		_, err = io.ReadAtLeast(f, thumbReadBuf, thumbBytes)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			fmt.Printf("Reached EOF at thumb %d\n", i-1)
 			os.Exit(0)
 		} else if err != nil {
@@ -131,7 +133,8 @@ func main() {
 		// 	}
 		// }
 
-		// saveImageToPng("thumb_all.png", outImageAll)
+		// err = saveImageToPng("thumb_all.png", outImageAll)
+		// check(err)
 
 		// // Extract luminance only and produce grayscale bitmap
 		// outImageLuminance := image.NewGray(image.Rect(0, 0, thumbWidth, thumbHeight))
@@ -147,7 +150,8 @@ func main() {
 		// }
 		// fmt.Printf("Maximum observed luminance: %d\n", maxLuminance)
 
-		// saveImageToPng("thumb_luminance.png", outImageLuminance)
+		// err = saveImageToPng("thumb_luminance.png", outImageLuminance)
+		// check(err)
 
 		// // Extract chroma only and produce grayscale bitmap
 		// outImageChromaBlue := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/2))
@@ -172,8 +176,10 @@ func main() {
 		// fmt.Printf("Maximum observed chroma blue: %d\n", maxChromaBlue)
 		// fmt.Printf("Maximum observed chroma red: %d\n", maxChromaRed)
 
-		// saveImageToPng("thumb_chroma_blue.png", outImageChromaBlue)
-		// saveImageToPng("thumb_chroma_red.png", outImageChromaRed)
+		// err = saveImageToPng("thumb_chroma_blue.png", outImageChromaBlue)
+		// check(err)
+		// err = saveImageToPng("thumb_chroma_red.png", outImageChromaRed)
+		// check(err)
 
 		// Create array of y, cb, cr components
 		outImage := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight))
@@ -188,10 +194,11 @@ func main() {
 			}
 		}
 
-		saveImageToPng(
-			thumbsName+"/"+thumbsName+"_"+strconv.FormatInt(int64(i), 10)+".png",
-			outImage,
-		)
+		thumbPath := thumbName + "/" + thumbName + "_" + strconv.FormatInt(int64(i), 10) + ".png"
+		if err = saveImageToPng(thumbPath, outImage); err != nil {
+			fmt.Printf("Failed to save image %d\n", i)
+			fmt.Println(err.Error())
+		}
 
 		// // Create histogram
 		// var histRed [256]uint8
@@ -259,10 +266,11 @@ func main() {
 		// 	}
 		// }
 
-		// saveImageToPng(
-		// 	thumbsName + "/" + thumbsName + "_" + strconv.FormatInt(int64(i), 10) + "_histogram.png",
+		// err = saveImageToPng(
+		// 	thumbName + "/" + thumbName + "_" + strconv.FormatInt(int64(i), 10) + "_histogram.png",
 		// 	outImageHistogram,
 		// )
+		// check(err)
 	}
 
 	os.Exit(0)
