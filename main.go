@@ -49,6 +49,15 @@ func check(e error) {
 	}
 }
 
+func saveImageToPng(path string, img image.Image) {
+	outFile, err := os.Create(path)
+	check(err)
+	defer outFile.Close()
+
+	err = png.Encode(outFile, img)
+	check(err)
+}
+
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Println("Usage: ithmbrdr id filename")
@@ -95,8 +104,6 @@ func main() {
 		}
 	}
 
-	// thumbId, err := strconv.Atoi(os.Args[1])
-	// check(err)
 	thumbWidth := 720
 	thumbHeight := 480
 	thumbPixels := thumbWidth * thumbHeight
@@ -124,12 +131,7 @@ func main() {
 		// 	}
 		// }
 
-		// outFile, err := os.Create("thumb_all.png")
-		// check(err)
-		// defer outFile.Close()
-
-		// err = png.Encode(outFile, outImageAll)
-		// check(err)
+		// saveImageToPng("thumb_all.png", outImageAll)
 
 		// // Extract luminance only and produce grayscale bitmap
 		// outImageLuminance := image.NewGray(image.Rect(0, 0, thumbWidth, thumbHeight))
@@ -145,12 +147,7 @@ func main() {
 		// }
 		// fmt.Printf("Maximum observed luminance: %d\n", maxLuminance)
 
-		// outFile, err = os.Create("thumb_luminance.png")
-		// check(err)
-		// defer outFile.Close()
-
-		// err = png.Encode(outFile, outImageLuminance)
-		// check(err)
+		// saveImageToPng("thumb_luminance.png", outImageLuminance)
 
 		// // Extract chroma only and produce grayscale bitmap
 		// outImageChromaBlue := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/2))
@@ -175,19 +172,8 @@ func main() {
 		// fmt.Printf("Maximum observed chroma blue: %d\n", maxChromaBlue)
 		// fmt.Printf("Maximum observed chroma red: %d\n", maxChromaRed)
 
-		// outFile, err = os.Create("thumb_chroma_blue.png")
-		// check(err)
-		// defer outFile.Close()
-
-		// err = png.Encode(outFile, outImageChromaBlue)
-		// check(err)
-
-		// outFile, err = os.Create("thumb_chroma_red.png")
-		// check(err)
-		// defer outFile.Close()
-
-		// err = png.Encode(outFile, outImageChromaRed)
-		// check(err)
+		// saveImageToPng("thumb_chroma_blue.png", outImageChromaBlue)
+		// saveImageToPng("thumb_chroma_red.png", outImageChromaRed)
 
 		// Create array of y, cb, cr components
 		outImage := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight))
@@ -202,12 +188,10 @@ func main() {
 			}
 		}
 
-		outFile, err := os.Create(thumbsName + "/" + thumbsName + "_" + strconv.FormatInt(int64(i), 10) + ".png")
-		check(err)
-
-		err = png.Encode(outFile, outImage)
-		check(err)
-		outFile.Close()
+		saveImageToPng(
+			thumbsName+"/"+thumbsName+"_"+strconv.FormatInt(int64(i), 10)+".png",
+			outImage,
+		)
 
 		// // Create histogram
 		// var histRed [256]uint8
@@ -275,18 +259,11 @@ func main() {
 		// 	}
 		// }
 
-		// outFile, err = os.Create(thumbsName + "/" + thumbsName + "_" + strconv.FormatInt(int64(i), 10) + "_histogram.png")
-		// check(err)
-
-		// err = png.Encode(outFile, outImageHistogram)
-		// check(err)
-		// outFile.Close()
+		// saveImageToPng(
+		// 	thumbsName + "/" + thumbsName + "_" + strconv.FormatInt(int64(i), 10) + "_histogram.png",
+		// 	outImageHistogram,
+		// )
 	}
-
-	// // Create BMP file from buffer
-	// n, err = writeBitmap("thumb", thumbGrayscaleBuf, thumbWidth, 24)
-	// check(err)
-	// fmt.Printf("Wrote %d bytes\n", n)
 
 	os.Exit(0)
 }
