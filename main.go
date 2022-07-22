@@ -191,11 +191,15 @@ func main() {
 	var idString string
 	var pathString string
 
-	size := 100
+	channelSize := 100
 	if len(os.Args) == 5 {
-		size, err = strconv.Atoi(os.Args[2])
+		channelSize, err = strconv.Atoi(os.Args[2])
 		if err != nil {
 			panic(err)
+		}
+		if channelSize <= 0 {
+			fmt.Println("channel size needs to be at least 1")
+			os.Exit(1)
 		}
 		idString = os.Args[3]
 		pathString = os.Args[4]
@@ -203,7 +207,7 @@ func main() {
 		idString = os.Args[1]
 		pathString = os.Args[2]
 	}
-	fmt.Printf("Using channel size %d\n", size)
+	fmt.Printf("Using channel size %d\n", channelSize)
 
 	path, err := filepath.Abs(pathString)
 	if err != nil {
@@ -253,12 +257,12 @@ func main() {
 	bytes := width * height * 2
 
 	// Setup channels for job queuing and async processing/writing
-	jobs := make(chan indexedBuffer, size)
-	results := make(chan indexedImage, size)
+	jobs := make(chan indexedBuffer, channelSize)
+	results := make(chan indexedImage, channelSize)
 
-	queued := make(chan int, size)
-	processed := make(chan int, size)
-	written := make(chan int, size)
+	queued := make(chan int, channelSize)
+	processed := make(chan int, channelSize)
+	written := make(chan int, channelSize)
 
 	wgProcess := new(sync.WaitGroup)
 	wgWrite := new(sync.WaitGroup)
@@ -268,7 +272,12 @@ func main() {
 	go printStatusAsync(queued, processed, written, wgPrint)
 
 	// Process workers
-	for w := 1; w <= 5; w++ {
+	numProcessWorkers := 5
+	if channelSize < numProcessWorkers {
+		numProcessWorkers = channelSize
+	}
+
+	for w := 1; w <= numProcessWorkers; w++ {
 		wgProcess.Add(1)
 		go convertYcbcr2RgbaAsync(jobs, results, processed, width, height, wgProcess)
 	}
@@ -282,7 +291,12 @@ func main() {
 	}()
 
 	// Write workers
-	for w := 1; w <= 20; w++ {
+	numWriteWorkers := 5
+	if channelSize < numWriteWorkers {
+		numWriteWorkers = channelSize
+	}
+
+	for w := 1; w <= numWriteWorkers; w++ {
 		wgWrite.Add(1)
 		go saveImageToPngAsync(results, written, name, wgWrite)
 	}
