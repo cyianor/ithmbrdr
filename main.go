@@ -119,7 +119,30 @@ func convertYcbcr2RgbaAsync(jobs <-chan indexedBuffer, results chan<- indexedIma
 	}
 }
 
-func printStatus(queued, processed, written <-chan int, wg *sync.WaitGroup) {
+func saveImageToPng(path string, img image.Image) error {
+	outFile, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	return png.Encode(outFile, img)
+}
+
+func saveImageToPngAsync(results <-chan indexedImage, written chan<- int, name string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for iimg := range results {
+		path := name + "/" + name + "_" + strconv.FormatInt(int64(iimg.index), 10) + ".png"
+		if err := saveImageToPng(path, iimg.img); err != nil {
+			fmt.Printf("Failed to save image %d\n", iimg.index)
+			fmt.Println(err.Error())
+		}
+		written <- iimg.index
+	}
+}
+
+func printStatusAsync(queued, processed, written <-chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	total_queued := 0
@@ -157,35 +180,6 @@ func printStatus(queued, processed, written <-chan int, wg *sync.WaitGroup) {
 	fmt.Printf("\n")
 }
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
-func saveImageToPng(path string, img image.Image) error {
-	outFile, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-
-	return png.Encode(outFile, img)
-}
-
-func saveImageToPngAsync(results <-chan indexedImage, written chan<- int, name string, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for iimg := range results {
-		path := name + "/" + name + "_" + strconv.FormatInt(int64(iimg.index), 10) + ".png"
-		if err := saveImageToPng(path, iimg.img); err != nil {
-			fmt.Printf("Failed to save image %d\n", iimg.index)
-			fmt.Println(err.Error())
-		}
-		written <- iimg.index
-	}
-}
-
 func main() {
 	var err error
 
@@ -212,7 +206,9 @@ func main() {
 	fmt.Printf("Using channel size %d\n", size)
 
 	path, err := filepath.Abs(pathString)
-	check(err)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("Reading from %s\n", path)
 	name := strings.Split(filepath.Base(path), ".")[0]
 	fmt.Printf("File is %s\n", name)
@@ -224,34 +220,39 @@ func main() {
 		}
 	}
 
-	thumbIdMin := 0
-	thumbIdMax := int((^uint(0)) >> 1)
+	idMin := 0
+	idMax := int((^uint(0)) >> 1)
 
 	if idString != "*" {
-		thumbId, err := strconv.Atoi(idString)
+		id, err := strconv.Atoi(idString)
 		if err != nil {
 			// Input might be a range
-			thumbIds := strings.Split(idString, "-")
-			if len(thumbIds) != 2 {
+			ids := strings.Split(idString, "-")
+			if len(ids) != 2 {
 				fmt.Println("Ranges need to be of the form d1-d2, e.g. 2-10")
 				os.Exit(1)
 			} else {
-				thumbIdMin, err = strconv.Atoi(thumbIds[0])
-				check(err)
-				thumbIdMax, err = strconv.Atoi(thumbIds[1])
-				check(err)
-				thumbIdMax += 1
+				idMin, err = strconv.Atoi(ids[0])
+				if err != nil {
+					panic(err)
+				}
+				idMax, err = strconv.Atoi(ids[1])
+				if err != nil {
+					panic(err)
+				}
+				idMax += 1
 			}
 		} else {
-			thumbIdMin = thumbId
-			thumbIdMax = thumbId + 1
+			idMin = id
+			idMax = id + 1
 		}
 	}
 
-	thumbWidth := 720
-	thumbHeight := 480
-	thumbBytes := thumbWidth * thumbHeight * 2
+	width := 720
+	height := 480
+	bytes := width * height * 2
 
+	// Setup channels for job queuing and async processing/writing
 	jobs := make(chan indexedBuffer, size)
 	results := make(chan indexedImage, size)
 
@@ -264,15 +265,15 @@ func main() {
 	wgPrint := new(sync.WaitGroup)
 
 	wgPrint.Add(1)
-	go printStatus(queued, processed, written, wgPrint)
+	go printStatusAsync(queued, processed, written, wgPrint)
 
-	// Start some workers
+	// Process workers
 	for w := 1; w <= 5; w++ {
 		wgProcess.Add(1)
-		go convertYcbcr2RgbaAsync(jobs, results, processed, thumbWidth, thumbHeight, wgProcess)
+		go convertYcbcr2RgbaAsync(jobs, results, processed, width, height, wgProcess)
 	}
 
-	go readBufferAsync(path, thumbIdMin, thumbIdMax, thumbBytes, jobs, queued)
+	go readBufferAsync(path, idMin, idMax, bytes, jobs, queued)
 
 	go func() {
 		wgProcess.Wait()
@@ -280,6 +281,7 @@ func main() {
 		close(processed)
 	}()
 
+	// Write workers
 	for w := 1; w <= 20; w++ {
 		wgWrite.Add(1)
 		go saveImageToPngAsync(results, written, name, wgWrite)
@@ -292,25 +294,27 @@ func main() {
 
 	wgPrint.Wait()
 
-	// for i := thumbIdMin; i < thumbIdMax; i += 1 {
+	// for i := idMin; i < idMax; i += 1 {
 	// // Extract all available image information as we know it
-	// outImageAll := image.NewGray(image.Rect(0, 0, thumbWidth*2, thumbHeight))
-	// for y := 0; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth*2; x = x + 1 {
-	// 		luminance := thumbReadBuf[y*thumbWidth*2+x]
+	// outImageAll := image.NewGray(image.Rect(0, 0, width*2, height))
+	// for y := 0; y < height; y = y + 1 {
+	// 	for x := 0; x < width*2; x = x + 1 {
+	// 		luminance := thumbReadBuf[y*width*2+x]
 	// 		outImageAll.Set(x, y, color.Gray{luminance})
 	// 	}
 	// }
 
 	// err = saveImageToPng("thumb_all.png", outImageAll)
-	// check(err)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// // Extract luminance only and produce grayscale bitmap
-	// outImageLuminance := image.NewGray(image.Rect(0, 0, thumbWidth, thumbHeight))
+	// outImageLuminance := image.NewGray(image.Rect(0, 0, width, height))
 	// maxLuminance := byte(0)
-	// for y := 0; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth; x = x + 1 {
-	// 		luminance := thumbReadBuf[y*thumbWidth+x]
+	// for y := 0; y < height; y = y + 1 {
+	// 	for x := 0; x < width; x = x + 1 {
+	// 		luminance := thumbReadBuf[y*width+x]
 	// 		if maxLuminance < luminance {
 	// 			maxLuminance = luminance
 	// 		}
@@ -320,22 +324,24 @@ func main() {
 	// fmt.Printf("Maximum observed luminance: %d\n", maxLuminance)
 
 	// err = saveImageToPng("thumb_luminance.png", outImageLuminance)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 
 	// // Extract chroma only and produce grayscale bitmap
-	// outImageChromaBlue := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/2))
-	// outImageChromaRed := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/2))
+	// outImageChromaBlue := image.NewGray(image.Rect(0, 0, width/2, height/2))
+	// outImageChromaRed := image.NewGray(image.Rect(0, 0, width/2, height/2))
 	// maxChromaBlue := byte(0)
 	// maxChromaRed := byte(0)
-	// for y := 0; y < thumbHeight/2; y = y + 1 {
-	// 	for x := 0; x < thumbWidth/2; x = x + 1 {
-	// 		chromaBlue := thumbReadBuf[thumbPixels+y*thumbWidth/2+x]
+	// for y := 0; y < height/2; y = y + 1 {
+	// 	for x := 0; x < width/2; x = x + 1 {
+	// 		chromaBlue := thumbReadBuf[thumbPixels+y*width/2+x]
 	// 		if maxChromaBlue < chromaBlue {
 	// 			maxChromaBlue = chromaBlue
 	// 		}
 	// 		outImageChromaBlue.Set(x, y, color.Gray{chromaBlue})
 
-	// 		chromaRed := thumbReadBuf[thumbPixels*5/4+y*thumbWidth/2+x]
+	// 		chromaRed := thumbReadBuf[thumbPixels*5/4+y*width/2+x]
 	// 		if maxChromaRed < chromaRed {
 	// 			maxChromaRed = chromaRed
 	// 		}
@@ -346,54 +352,64 @@ func main() {
 	// fmt.Printf("Maximum observed chroma red: %d\n", maxChromaRed)
 
 	// err = saveImageToPng("thumb_chroma_blue.png", outImageChromaBlue)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 	// err = saveImageToPng("thumb_chroma_red.png", outImageChromaRed)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 
 	// // Extract luminance of rest and produce grayscale bitmap
-	// outImageRestLuminance := image.NewGray(image.Rect(0, 0, thumbWidth, thumbHeight/4))
-	// for y := 360; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth; x = x + 1 {
-	// 		luminance := thumbReadBuf[y*thumbWidth*2+2*x+1]
+	// outImageRestLuminance := image.NewGray(image.Rect(0, 0, width, height/4))
+	// for y := 360; y < height; y = y + 1 {
+	// 	for x := 0; x < width; x = x + 1 {
+	// 		luminance := thumbReadBuf[y*width*2+2*x+1]
 	// 		outImageRestLuminance.Set(x, y-360, color.Gray{luminance})
 	// 	}
 	// }
 
 	// err = saveImageToPng("thumb_rest_luminance.png", outImageRestLuminance)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 
 	// // Extract only the last fourth of image data and produce grayscale bitmap
-	// outImageRestChromaBlue := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/4))
-	// outImageRestChromaRed := image.NewGray(image.Rect(0, 0, thumbWidth/2, thumbHeight/4))
-	// for y := 360; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth/2; x = x + 1 {
-	// 		chromaBlue := thumbReadBuf[y*thumbWidth*2+4*x]
-	// 		chromaRed := thumbReadBuf[y*thumbWidth*2+4*x+2]
+	// outImageRestChromaBlue := image.NewGray(image.Rect(0, 0, width/2, height/4))
+	// outImageRestChromaRed := image.NewGray(image.Rect(0, 0, width/2, height/4))
+	// for y := 360; y < height; y = y + 1 {
+	// 	for x := 0; x < width/2; x = x + 1 {
+	// 		chromaBlue := thumbReadBuf[y*width*2+4*x]
+	// 		chromaRed := thumbReadBuf[y*width*2+4*x+2]
 	// 		outImageRestChromaBlue.Set(x, y-360, color.Gray{chromaBlue})
 	// 		outImageRestChromaRed.Set(x, y-360, color.Gray{chromaRed})
 	// 	}
 	// }
 
 	// err = saveImageToPng("thumb_rest_chroma_blue.png", outImageRestChromaBlue)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 	// err = saveImageToPng("thumb_rest_chroma_red.png", outImageRestChromaRed)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 
 	// // Re-create image from rest
-	// outImageRest := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight/4))
-	// for y := 360; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth; x = x + 1 {
+	// outImageRest := image.NewRGBA(image.Rect(0, 0, width, height/4))
+	// for y := 360; y < height; y = y + 1 {
+	// 	for x := 0; x < width; x = x + 1 {
 	// 		luminance, chromaBlue, chromaRed := uint8(0), uint8(0), uint8(0)
 	// 		if x%2 == 0 {
 	// 			xhalf := x / 2
-	// 			luminance = thumbReadBuf[y*thumbWidth*2+4*xhalf+1]
-	// 			chromaBlue = thumbReadBuf[y*thumbWidth*2+4*xhalf]
-	// 			chromaRed = thumbReadBuf[y*thumbWidth*2+4*xhalf+2]
+	// 			luminance = thumbReadBuf[y*width*2+4*xhalf+1]
+	// 			chromaBlue = thumbReadBuf[y*width*2+4*xhalf]
+	// 			chromaRed = thumbReadBuf[y*width*2+4*xhalf+2]
 	// 		} else {
 	// 			xm1half := (x - 1) / 2
-	// 			luminance = thumbReadBuf[y*thumbWidth*2+4*xm1half+3]
-	// 			chromaBlue = thumbReadBuf[y*thumbWidth*2+4*xm1half]
-	// 			chromaRed = thumbReadBuf[y*thumbWidth*2+4*xm1half+2]
+	// 			luminance = thumbReadBuf[y*width*2+4*xm1half+3]
+	// 			chromaBlue = thumbReadBuf[y*width*2+4*xm1half]
+	// 			chromaRed = thumbReadBuf[y*width*2+4*xm1half+2]
 	// 		}
 
 	// 		r, g, b := ycbcr2rgb(ycbcr{luminance, chromaBlue, chromaRed})
@@ -402,15 +418,17 @@ func main() {
 	// }
 
 	// err = saveImageToPng("thumb_rest.png", outImageRest)
-	// check(err)
+	// if err != nil {
+	//	panic(err)
+	// }
 
 	// // Create array of y, cb, cr components
-	// outImage := image.NewRGBA(image.Rect(0, 0, thumbWidth, thumbHeight))
-	// for y := 0; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth; x = x + 1 {
-	// 		luminance := thumbReadBuf[y*thumbWidth+x]
-	// 		chromaBlue := thumbReadBuf[thumbPixels+(y/2)*thumbWidth/2+(x/2)]
-	// 		chromaRed := thumbReadBuf[thumbPixels*5/4+(y/2)*thumbWidth/2+(x/2)]
+	// outImage := image.NewRGBA(image.Rect(0, 0, width, height))
+	// for y := 0; y < height; y = y + 1 {
+	// 	for x := 0; x < width; x = x + 1 {
+	// 		luminance := thumbReadBuf[y*width+x]
+	// 		chromaBlue := thumbReadBuf[thumbPixels+(y/2)*width/2+(x/2)]
+	// 		chromaRed := thumbReadBuf[thumbPixels*5/4+(y/2)*width/2+(x/2)]
 
 	// 		r, g, b := ycbcr2rgb(ycbcr{luminance, chromaBlue, chromaRed})
 	// 		outImage.Set(x, y, color.RGBA{r, g, b, 255})
@@ -427,8 +445,8 @@ func main() {
 	// var histRed [256]uint8
 	// var histGreen [256]uint8
 	// var histBlue [256]uint8
-	// for y := 0; y < thumbHeight; y = y + 1 {
-	// 	for x := 0; x < thumbWidth; x = x + 1 {
+	// for y := 0; y < height; y = y + 1 {
+	// 	for x := 0; x < width; x = x + 1 {
 	// 		col := outImage.RGBAAt(x, y)
 	// 		histRed[col.R] += 1
 	// 		histGreen[col.G] += 1
@@ -493,7 +511,8 @@ func main() {
 	// 	thumbName + "/" + thumbName + "_" + strconv.FormatInt(int64(i), 10) + "_histogram.png",
 	// 	outImageHistogram,
 	// )
-	// check(err)
+	// if err != nil {
+	//	panic(err)
 	// }
 
 	os.Exit(0)
