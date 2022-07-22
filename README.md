@@ -28,8 +28,8 @@ the highest resolution images (`720 x 480 pixels`) were in files called
 apart if there are too many images in one.
 
 The images are stored consecutively in the `ithmb` files, without any header.
-Not that each image uses `720 * 480 * 2 bytes`. The colors were encoded in 
-YCbCr or YUV (not sure) with a 4:2:0 chroma sampling scheme. Not that the
+Note that each image uses `720 * 480 * 2 bytes`. The colors were encoded in 
+YCbCr or YUV (not sure) with a 4:2:0 chroma sampling scheme. Note that the
 data is saved in the order below.
 
 The first `720 * 480 bytes` encode the luminance for each pixel. The next
