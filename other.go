@@ -1,3 +1,5 @@
+package main
+
 // for i := idMin; i < idMax; i += 1 {
 // // Extract all available image information as we know it
 // outImageAll := image.NewGray(image.Rect(0, 0, width*2, height))
