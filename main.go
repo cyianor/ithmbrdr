@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -183,31 +184,33 @@ func printStatusAsync(queued, processed, written <-chan int, wg *sync.WaitGroup)
 func main() {
 	var err error
 
-	if !(len(os.Args) == 3 || len(os.Args) == 5) || (len(os.Args) == 5 && os.Args[1] != "-c") {
-		fmt.Println("Usage: ithmbrdr [-c channelSize] id filename")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: ithmbrdr [-c channelSize] [-id idString] fileName\n\n")
+		flag.PrintDefaults()
+	}
+
+	// Deal with command line input
+	channelSizePtr := flag.Int("c", 100, "maximum channel size")
+	idStringPtr := flag.String("id", "*", "single photo (e.g. \"10\"), range (e.g. \"2-5\"), or all (\"*\")")
+
+	flag.Parse()
+
+	channelSize := *channelSizePtr
+	idString := *idStringPtr
+
+	tail := flag.Args()
+	if len(tail) != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+	pathString := tail[0]
+
+	if channelSize <= 0 {
+		fmt.Println("channel size needs to be at least 1")
 		os.Exit(1)
 	}
 
-	var idString string
-	var pathString string
-
-	channelSize := 100
-	if len(os.Args) == 5 {
-		channelSize, err = strconv.Atoi(os.Args[2])
-		if err != nil {
-			panic(err)
-		}
-		if channelSize <= 0 {
-			fmt.Println("channel size needs to be at least 1")
-			os.Exit(1)
-		}
-		idString = os.Args[3]
-		pathString = os.Args[4]
-	} else {
-		idString = os.Args[1]
-		pathString = os.Args[2]
-	}
-	fmt.Printf("Using channel size %d\n", channelSize)
+	// fmt.Printf("Using channel size %d\n", channelSize)
 
 	path, err := filepath.Abs(pathString)
 	if err != nil {
@@ -215,7 +218,7 @@ func main() {
 	}
 	fmt.Printf("Reading from %s\n", path)
 	name := strings.Split(filepath.Base(path), ".")[0]
-	fmt.Printf("File is %s\n", name)
+	// fmt.Printf("File is %s\n", name)
 
 	// Create a directory of this name if it does not exist
 	if _, err = os.Stat(name); errors.Is(err, os.ErrNotExist) {
