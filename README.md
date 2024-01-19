@@ -1,5 +1,7 @@
 # Reader for iPod ithmb files
 
+## Background
+
 In an attempt to recover lost images from an iPod nano 3rd generation
 (the almost square, slightly fat ones) I stumbled across the `ithmb` file
 format. Apple saves thumbnails of pictures synchronised with an iPod
@@ -46,6 +48,29 @@ while the chroma information is fully available and is the same as the
 lower half of the respective chroma channels encoded above. It is possible
 that this chunk is just meant for padding, but it is unclear why half the
 image would be saved here, especially in this vertically squished fashion.
+
+## Example
+
+Assuming you have the file `F1067_3.ithmb` in the current folder.
+
+```bash
+./ithmbrdr F1067_3.ithmb
+```
+
+creates a folder (if it does not exist) called `F1067_3` and extracts all
+images from `F1067_3.ithmb` to this folder and saves them as PNG files.
+
+```bash
+./ithmbrdr -id "9" F1067_3.ithmb
+```
+
+extracts only the 10th image (0-based indexing) from `F1067_3.ithmb`.
+
+```bash
+./ithmbrdr -id "3-8" F1067_3.ithmb
+```
+
+extracts images 4 to 9 (0-based indexing). Ranges are inclusive on both ends.
 
 ## TODOs
 
